@@ -1,0 +1,389 @@
+-- ═══════════════════════════════════════════════════════════
+--  🎨 BLOXSTRIKE SKIN CHANGER — Fluent UI + Floating Button
+-- ═══════════════════════════════════════════════════════════
+
+-- 1. FLUENT
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+
+-- 2. СБОР СКИНОВ
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local UIS = game:GetService("UserInputService")
+local LP = Players.LocalPlayer
+
+local AllSkins = {}
+local Categories = {
+    Knives = {}, Pistols = {}, Rifles = {}, Snipers = {},
+    SMGs = {}, Shotguns = {}, Gloves = {}, Other = {},
+}
+local GLOVE_TYPES = {"Hand Wraps","Driver Gloves","Sports Gloves","Operator Gloves","T Glove","CT Glove"}
+
+local CATEGORY_MAP = {
+    ["Karambit"]="Knives",["Butterfly Knife"]="Knives",["Gut Knife"]="Knives",
+    ["Flip Knife"]="Knives",["Stiletto Knife"]="Knives",["Skeleton Knife"]="Knives",
+    ["M9 Bayonet"]="Knives",["CT Knife"]="Knives",["T Knife"]="Knives",["LightSaber"]="Knives",
+    ["Glock-18"]="Pistols",["USP-S"]="Pistols",["P250"]="Pistols",
+    ["Five-SeveN"]="Pistols",["Tec-9"]="Pistols",["Desert Eagle"]="Pistols",
+    ["Dual Berettas"]="Pistols",["R8 Revolver"]="Pistols",["Zeus x27"]="Pistols",
+    ["AK-47"]="Rifles",["M4A4"]="Rifles",["M4A1-S"]="Rifles",
+    ["FAMAS"]="Rifles",["Galil AR"]="Rifles",["AUG"]="Rifles",["SG 553"]="Rifles",
+    ["AWP"]="Snipers",["SSG 08"]="Snipers",
+    ["MP9"]="SMGs",["MAC-10"]="SMGs",["P90"]="SMGs",
+    ["Nova"]="Shotguns",["XM1014"]="Shotguns",["MAG-7"]="Shotguns",
+    ["Sawed-Off"]="Shotguns",["Negev"]="Shotguns",
+    ["C4"]="Other",["HE Grenade"]="Other",["Smoke Grenade"]="Other",
+    ["Flashbang"]="Other",["Molotov"]="Other",["Incendiary Grenade"]="Other",
+    ["Decoy Grenade"]="Other",
+}
+
+local function isGloveType(name)
+    for _, g in ipairs(GLOVE_TYPES) do if g == name then return true end end
+    return false
+end
+
+local function collectSkins()
+    local skins = RS:FindFirstChild("Assets") and RS.Assets:FindFirstChild("Skins")
+    if not skins then return end
+    for _, weaponFolder in ipairs(skins:GetChildren()) do
+        local weaponName = weaponFolder.Name
+        local skinList = {}
+        for _, skinFolder in ipairs(weaponFolder:GetChildren()) do
+            if skinFolder:IsA("Folder") and (skinFolder:FindFirstChild("Camera") or skinFolder:FindFirstChild("Character")) then
+                table.insert(skinList, skinFolder.Name)
+            end
+        end
+        if #skinList > 0 then
+            table.sort(skinList)
+            AllSkins[weaponName] = skinList
+            if not isGloveType(weaponName) then
+                local cat = CATEGORY_MAP[weaponName] or "Other"
+                table.insert(Categories[cat], weaponName)
+            end
+        end
+    end
+    for _, list in pairs(Categories) do table.sort(list) end
+end
+
+collectSkins()
+
+-- 3. ПОИСК ОРУЖИЯ
+local ALL_WEAPON_NAMES = {}
+for name, _ in pairs(AllSkins) do table.insert(ALL_WEAPON_NAMES, name) end
+table.sort(ALL_WEAPON_NAMES, function(a,b) return #a > #b end)
+
+local function findWeaponInHand()
+    for _, obj in ipairs(workspace.CurrentCamera:GetChildren()) do
+        if obj:IsA("Model") and AllSkins[obj.Name] then
+            return obj, obj.Name
+        end
+    end
+    for _, obj in ipairs(workspace.CurrentCamera:GetChildren()) do
+        if obj:IsA("Model") then
+            for _, w in ipairs(ALL_WEAPON_NAMES) do
+                if string.find(string.lower(obj.Name), string.lower(w)) then
+                    return obj, w
+                end
+            end
+        end
+    end
+    return nil, nil
+end
+
+local function getAnyViewModel()
+    for _, obj in ipairs(workspace.CurrentCamera:GetChildren()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Weapon") then return obj end
+    end
+    return nil
+end
+
+-- 4. ПРИМЕНЕНИЕ
+local function applyWeaponSkin(weaponName, skinName)
+    local vm = findWeaponInHand()
+    if not vm then return false end
+    local weapon = vm:FindFirstChild("Weapon")
+    if not weapon then return false end
+    local weaponFolder = RS.Assets.Skins:FindFirstChild(weaponName)
+    if not weaponFolder then return false end
+    local skinFolder = weaponFolder:FindFirstChild(skinName)
+    if not skinFolder then return false end
+    local camera = skinFolder:FindFirstChild("Camera")
+    if not camera then return false end
+    local condition = camera:FindFirstChild("Factory New") or camera:GetChildren()[1]
+    if not condition then return false end
+    for _, part in ipairs(weapon:GetDescendants()) do
+        if part:IsA("MeshPart") then
+            local sa = condition:FindFirstChild(part.Name)
+            if sa and sa:IsA("SurfaceAppearance") then
+                local old = part:FindFirstChildOfClass("SurfaceAppearance")
+                if old then old:Destroy() end
+                sa:Clone().Parent = part
+            end
+        end
+    end
+    print("[SkinChanger] ✅ " .. weaponName .. " → " .. skinName)
+    return true
+end
+
+local function applyGloveSkin(gloveType, skinName)
+    local vm = getAnyViewModel()
+    if not vm then return false end
+    local gloveFolder = RS.Assets.Skins:FindFirstChild(gloveType)
+    if not gloveFolder then return false end
+    local skinFolder = gloveFolder:FindFirstChild(skinName)
+    if not skinFolder then return false end
+    local camera = skinFolder:FindFirstChild("Camera")
+    if not camera then return false end
+    local condition = camera:FindFirstChild("Factory New") or camera:GetChildren()[1]
+    if not condition then return false end
+    local saLeft = condition:FindFirstChild("Left Arm")
+    local saRight = condition:FindFirstChild("Right Arm")
+    local applied = 0
+    for _, armName in ipairs({"Left Arm", "Right Arm"}) do
+        local arm = vm:FindFirstChild(armName)
+        if arm then
+            local srcSA = (armName == "Left Arm") and saLeft or saRight
+            if srcSA then
+                for _, c in ipairs(arm:GetChildren()) do
+                    if c:IsA("SurfaceAppearance") then c:Destroy() end
+                end
+                srcSA:Clone().Parent = arm
+                applied = applied + 1
+                for _, sub in ipairs(arm:GetChildren()) do
+                    if sub:IsA("MeshPart") and (sub.Name == "Glove" or sub.Name == "Sleeve") then
+                        for _, c in ipairs(sub:GetChildren()) do
+                            if c:IsA("SurfaceAppearance") then c:Destroy() end
+                        end
+                        srcSA:Clone().Parent = sub
+                        applied = applied + 1
+                    end
+                end
+            end
+        end
+    end
+    print("[SkinChanger] 🧤 " .. gloveType .. " → " .. skinName)
+    return true
+end
+
+-- 5. ОКНО FLUENT
+local Window = Fluent:CreateWindow({
+    Title = "BloxStrike",
+    SubTitle = "🎨 Skin Changer v4.1",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.RightControl,
+})
+
+local Tabs = {
+    Info     = Window:AddTab({ Title = "Инфо",       Icon = "info" }),
+    Knives   = Window:AddTab({ Title = "Ножи",       Icon = "sword" }),
+    Pistols  = Window:AddTab({ Title = "Пистолеты",  Icon = "crosshair" }),
+    Rifles   = Window:AddTab({ Title = "Винтовки",   Icon = "target" }),
+    Snipers  = Window:AddTab({ Title = "Снайперки",  Icon = "crosshair" }),
+    SMGs     = Window:AddTab({ Title = "ПП",         Icon = "zap" }),
+    Shotguns = Window:AddTab({ Title = "Дробовики",  Icon = "bomb" }),
+    Gloves   = Window:AddTab({ Title = "Перчатки",   Icon = "hand" }),
+    Other    = Window:AddTab({ Title = "Прочее",     Icon = "package" }),
+    Settings = Window:AddTab({ Title = "Настройки",  Icon = "settings" }),
+}
+
+-- Вкладка ИНФО
+local InfoSection = Tabs.Info:AddSection("Информация")
+InfoSection:AddParagraph({
+    Title = "🎨 BloxStrike Skin Changer",
+    Content = "Клиентский скинченджер. Скины видны только тебе."
+})
+local currentWeaponLabel = InfoSection:AddParagraph({
+    Title = "🔫 В руках:",
+    Content = "Определяю..."
+})
+InfoSection:AddParagraph({
+    Title = "📋 Управление",
+    Content = "• RightCtrl — свернуть/развернуть меню\n• 🎨 кнопка слева — быстрое открытие\n• Средняя кнопка окна — развернуть на весь экран"
+})
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        local _, w = findWeaponInHand()
+        if w then
+            currentWeaponLabel:SetDesc("🔫 В руках: " .. w)
+        else
+            currentWeaponLabel:SetDesc("🔍 Оружие не в руках")
+        end
+    end
+end)
+
+-- Вкладки с оружием
+local lastApplied = {}
+
+local function createWeaponTab(tab, weaponsList)
+    if #weaponsList == 0 then
+        tab:AddSection("Пусто"):AddParagraph({
+            Title = "Нет оружия в категории",
+            Content = "В этой категории ничего нет"
+        })
+        return
+    end
+    for _, weaponName in ipairs(weaponsList) do
+        local skinsList = AllSkins[weaponName] or {}
+        if #skinsList > 0 then
+            local section = tab:AddSection(weaponName)
+            section:AddDropdown(weaponName .. "_Skin", {
+                Title = "Выбери скин",
+                Description = "Применить к " .. weaponName,
+                Values = skinsList,
+                Multi = false,
+                Default = nil,
+                Callback = function(value)
+                    if not value then return end
+                    lastApplied[weaponName] = value
+                    applyWeaponSkin(weaponName, value)
+                end
+            })
+        end
+    end
+end
+
+createWeaponTab(Tabs.Knives, Categories.Knives)
+createWeaponTab(Tabs.Pistols, Categories.Pistols)
+createWeaponTab(Tabs.Rifles, Categories.Rifles)
+createWeaponTab(Tabs.Snipers, Categories.Snipers)
+createWeaponTab(Tabs.SMGs, Categories.SMGs)
+createWeaponTab(Tabs.Shotguns, Categories.Shotguns)
+createWeaponTab(Tabs.Other, Categories.Other)
+
+-- Перчатки
+for _, gloveType in ipairs(GLOVE_TYPES) do
+    local skinsList = AllSkins[gloveType] or {}
+    if #skinsList > 0 then
+        local subSection = Tabs.Gloves:AddSection(gloveType)
+        subSection:AddDropdown(gloveType .. "_skin", {
+            Title = "Выбери скин",
+            Description = "Применить к " .. gloveType,
+            Values = skinsList,
+            Multi = false,
+            Default = nil,
+            Callback = function(value)
+                if not value then return end
+                lastApplied["GLOVE"] = { type = gloveType, skin = value }
+                applyGloveSkin(gloveType, value)
+            end
+        })
+    end
+end
+
+-- Настройки
+local SettingsSec = Tabs.Settings:AddSection("Темы")
+SettingsSec:AddDropdown("Theme", {
+    Title = "Выбери тему",
+    Values = Fluent.Themes,
+    Default = "Darker",
+    Callback = function(value) Fluent:SetTheme(value) end
+})
+
+SettingsSec:AddButton({
+    Title = "❌ Удалить меню",
+    Description = "Полностью убрать UI",
+    Callback = function() Fluent:Destroy() end
+})
+
+-- Автопереприменение при смене оружия
+task.spawn(function()
+    local lastDetected = nil
+    while true do
+        task.wait(0.5)
+        local _, weaponName = findWeaponInHand()
+        if weaponName and weaponName ~= lastDetected then
+            lastDetected = weaponName
+            if lastApplied[weaponName] then
+                task.wait(0.15)
+                applyWeaponSkin(weaponName, lastApplied[weaponName])
+            end
+            if lastApplied["GLOVE"] then
+                task.wait(0.15)
+                applyGloveSkin(lastApplied["GLOVE"].type, lastApplied["GLOVE"].skin)
+            end
+        elseif not weaponName then
+            lastDetected = nil
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════
+--  🌟 ПЛАВАЮЩАЯ КНОПКА ОТКРЫТИЯ МЕНЮ
+-- ═══════════════════════════════════════════════════════════
+local FloatingBtnGui = Instance.new("ScreenGui")
+FloatingBtnGui.Name = "FluentFloatingBtn"
+FloatingBtnGui.ResetOnSpawn = false
+FloatingBtnGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+FloatingBtnGui.DisplayOrder = 999
+FloatingBtnGui.Parent = (function()
+    local ok, cg = pcall(function() return game:GetService("CoreGui") end)
+    if ok and cg then
+        local ok2 = pcall(function() FloatingBtnGui.Parent = cg end)
+        if ok2 then return cg end
+    end
+    return LP:WaitForChild("PlayerGui")
+end)()
+FloatingBtnGui.Parent = LP:WaitForChild("PlayerGui")
+
+local floatBtn = Instance.new("TextButton")
+floatBtn.Name = "OpenBtn"
+floatBtn.Size = UDim2.new(0, 52, 0, 52)
+floatBtn.Position = UDim2.new(0, 15, 0.5, -26)
+floatBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 200)
+floatBtn.Text = "🎨"
+floatBtn.TextSize = 26
+floatBtn.Font = Enum.Font.GothamBold
+floatBtn.BorderSizePixel = 0
+floatBtn.AutoButtonColor = true
+floatBtn.Active = true
+floatBtn.Draggable = true
+floatBtn.Parent = FloatingBtnGui
+
+local corner = Instance.new("UICorner", floatBtn)
+corner.CornerRadius = UDim.new(1, 0)
+
+local stroke = Instance.new("UIStroke", floatBtn)
+stroke.Color = Color3.fromRGB(220, 130, 255)
+stroke.Thickness = 2
+
+-- Лёгкая анимация пульсации
+task.spawn(function()
+    local TweenService = game:GetService("TweenService")
+    while floatBtn.Parent do
+        TweenService:Create(stroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness = 3}):Play()
+        task.wait(1.5)
+        TweenService:Create(stroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Thickness = 1}):Play()
+        task.wait(1.5)
+    end
+end)
+
+-- Логика кнопки: открыть/закрыть меню Fluent
+floatBtn.MouseButton1Click:Connect(function()
+    local win = Fluent.Window
+    if not win then return end
+    -- Переключаем видимость через встроенный метод Minimize
+    if win.Minimized then
+        -- Разворачиваем
+        win:Minimize()
+        floatBtn.BackgroundColor3 = Color3.fromRGB(80, 60, 100)
+    else
+        -- Сворачиваем
+        win:Minimize()
+        floatBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 200)
+    end
+end)
+
+-- Уведомление
+Fluent:Notify({
+    Title = "BloxStrike Skin Changer",
+    Content = "Загружено! Нажми 🎨 или RightCtrl чтобы открыть меню",
+    SubContent = "🎨 v4.1 — Fluent UI + Floating Button",
+    Duration = 8
+})
+
+Window:SelectTab(1)
+print("[BloxStrike SkinChanger v4.1] Загружено ✅ Плавающая кнопка активна")
